@@ -25,13 +25,13 @@ const MusicPlayer = ({ musicList }) => {
     const prevSong = useCallback(() => {
         const newIndex = (index + musicList.length - 1) % musicList.length;
         setIndex(newIndex);
-        setIsPlaying(true); // Auto play on prev
+        setIsPlaying(true); // Autoplay on song change
     }, [index, musicList.length]);
 
     const nextSong = useCallback(() => {
         const newIndex = (index + 1) % musicList.length;
         setIndex(newIndex);
-        setIsPlaying(true); // Auto play on next
+        setIsPlaying(true); // Autoplay on song change
     }, [index, musicList.length]);
 
     const playOrPause = useCallback(() => {
@@ -41,15 +41,20 @@ const MusicPlayer = ({ musicList }) => {
     
     const clickAudio = (key) => {
         setIndex(key);
-        setIsPlaying(true); // Auto play when clicking a new song
+        setIsPlaying(true); // Autoplay on song change
     };
     
     // 3. This effect now ONLY handles loading a new song when the index changes.
     useEffect(() => {
         if (playerRef.current) {
             playerRef.current.load();
-            // Always auto play new song
-            setIsPlaying(true);
+            if (isPlaying) {
+                // If a song was already playing, play the new one automatically.
+                playerRef.current.play().catch(e => {
+                    console.error("Autoplay was prevented:", e);
+                    setIsPlaying(false); // Correct the state if autoplay fails.
+                });
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [index]); // We intentionally leave `isPlaying` out to prevent the original bug.
