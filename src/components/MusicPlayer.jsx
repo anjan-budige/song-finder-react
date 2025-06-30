@@ -220,7 +220,6 @@ const MusicPlayer = ({ musicList }) => {
     }
 
     return (
-        <div style={{ margin: '0 30px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
         <div className="card">
             <div className="current-song">
                 <audio ref={playerRef} key={currentSong.audio}>
@@ -278,7 +277,7 @@ const MusicPlayer = ({ musicList }) => {
                 ))}
             </div>
         </div>
-        </div>
+    
     );
 };
 
