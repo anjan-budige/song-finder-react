@@ -1,181 +1,287 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { getTrendingData } from '../api';
-import MusicPlayer from './MusicPlayer';
-import { getSongAndSuggestionsList, getPlaylistSongs } from '../api';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const QuoteBox = () => {
-    const quotes = [
-        'I want someone who will look at me the same way I look at chocolate cake.',
-        'You want to know who I’m in love with? Read the first word again.',
-        'Life is the first gift, love is the second, and understanding the third.',
-        'Love is an emotion experienced by the many and enjoyed by the few.',
-        'Do what you love, and you will find the way to get it out to the world.',
-    ];
-    const [quote, setQuote] = useState('');
+const MusicPlayer = ({ musicList }) => {
+    const [index, setIndex] = useState(0);
+    const [currentTime, setCurrentTime] = useState('0:00');
+    // 1. State renamed for clarity: `true` means playing, `false` means paused.
+    const [isPlaying, setIsPlaying] = useState(false);
 
-    useEffect(() => {
-        setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+    const playerRef = useRef(null);
+    const timelineRef = useRef(null);
+    const playheadRef = useRef(null);
+    const hoverPlayheadRef = useRef(null);
+
+    const currentSong = musicList[index];
+
+    const formatTime = (time) => {
+        if (isNaN(time)) return '0:00';
+        const minutes = Math.floor(time / 60);
+        let seconds = Math.floor(time % 60);
+        seconds = seconds >= 10 ? seconds : "0" + seconds;
+        return `${minutes}:${seconds}`;
+    };
+
+    // 2. All event handlers are wrapped in `useCallback` for stability.
+    const prevSong = useCallback(() => {
+        const newIndex = (index + musicList.length - 1) % musicList.length;
+        setIndex(newIndex);
+        setIsPlaying(true); // Autoplay on song change
+    }, [index, musicList.length]);
+
+    const nextSong = useCallback(() => {
+        const newIndex = (index + 1) % musicList.length;
+        setIndex(newIndex);
+        setIsPlaying(true); // Autoplay on song change
+    }, [index, musicList.length]);
+
+    const playOrPause = useCallback(() => {
+        // Toggle the playing state. The `useEffect` below will handle the action.
+        setIsPlaying((prevIsPlaying) => !prevIsPlaying);
     }, []);
-
-    return (
-        <div className="box">
-            <br />
-            <h2><u>Quote of the day</u></h2>
-            <br />
-            <b style={{ fontFamily: 'solway' }}>{quote}</b>
-            <br /> <br />
-        </div>
-    );
-};
-
-const HomePage = ({ randomColor}) => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [trending, setTrending] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    const lang = searchParams.get('lang') || 'telugu';
-    const languages = ["Telugu", "Hindi", "Marathi", "English", "Tamil"];
-    const languageValues = ["telugu", "hindi", "marathi", "english", "tamil"];
-
-    useEffect(() => {
-        const fetchTrending = async () => {
-            setLoading(true);
-            try {
-                const data = await getTrendingData(lang);
-                setTrending(data);
-            } catch (error) {
-                console.error("Error fetching trending data:", error);
-            }
-            setLoading(false);
-        };
-        fetchTrending();
-    }, [lang]);
-
-    const songQuery = searchParams.get('song');
-    const playlistId = searchParams.get('playlist');
-
-    const [musicList, setMusicList] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-
     
+    const clickAudio = (key) => {
+        setIndex(key);
+        setIsPlaying(true); // Autoplay on song change
+    };
+    
+    // 3. This effect now ONLY handles loading a new song when the index changes.
     useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            setError(null);
-            setMusicList([]);
+        if (playerRef.current) {
+            playerRef.current.load();
+            if (isPlaying) {
+                // If a song was already playing, play the new one automatically.
+                playerRef.current.play().catch(e => {
+                    console.error("Autoplay was prevented:", e);
+                    setIsPlaying(false); // Correct the state if autoplay fails.
+                });
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [index]); // We intentionally leave `isPlaying` out to prevent the original bug.
+                 // This effect should only run when the song itself changes.
 
-            try {
-                let data = [];
-                if (songQuery) {
-                    data = await getSongAndSuggestionsList(songQuery);
-                } else if (playlistId) {
-                    data = await getPlaylistSongs(playlistId);
+    // 4. This new effect syncs the `isPlaying` state with the audio element.
+    useEffect(() => {
+        if (playerRef.current) {
+            if (isPlaying) {
+                playerRef.current.play().catch(e => {
+                     console.error("Play command failed:", e);
+                     setIsPlaying(false);
+                });
+            } else {
+                playerRef.current.pause();
+            }
+        }
+    }, [isPlaying]);
+
+    // Event Listeners setup for the timeline
+    useEffect(() => {
+        const player = playerRef.current;
+        const timeline = timelineRef.current;
+        if (!player || !timeline) return;
+
+        const timeUpdate = () => {
+            const duration = player.duration;
+            const playPercent = 100 * (player.currentTime / duration);
+            if (playheadRef.current) {
+               playheadRef.current.style.width = `${playPercent}%`;
+            }
+            setCurrentTime(formatTime(player.currentTime));
+        };
+
+        const changeCurrentTime = (e) => {
+            const duration = player.duration;
+            const timelineWidth = timeline.offsetWidth;
+            const timelineStart = timeline.getBoundingClientRect().left;
+            const userClickWidth = e.clientX - timelineStart;
+            const userClickWidthInPercent = (userClickWidth * 100) / timelineWidth;
+            
+            if (playheadRef.current) {
+                playheadRef.current.style.width = `${userClickWidthInPercent}%`;
+            }
+            player.currentTime = (duration * userClickWidthInPercent) / 100;
+        };
+        
+        const hoverTimeLine = (e) => {
+            const duration = player.duration;
+            const timelineWidth = timeline.offsetWidth;
+            const timelineStart = timeline.getBoundingClientRect().left;
+            const userClickWidth = e.clientX - timelineStart;
+            
+            // Boundary check
+            if (userClickWidth < 0 || userClickWidth > timelineWidth) return;
+            
+            const userClickWidthInPercent = (userClickWidth * 100) / timelineWidth;
+
+            if (hoverPlayheadRef.current) {
+                hoverPlayheadRef.current.style.width = `${userClickWidthInPercent}%`;
+                const time = (duration * userClickWidthInPercent) / 100;
+                if (!isNaN(time)) {
+                    hoverPlayheadRef.current.dataset.content = formatTime(time);
                 }
-
-                if (data.length > 0) {
-                    setMusicList(data);
-                } else if (songQuery) {
-                    setError('No song found for your search.');
-                }
-
-            } catch (err) {
-                console.error("Error fetching data:", err);
-                setError('Failed to load music. Please try again.');
-            } finally {
-                setIsLoading(false);
             }
         };
 
-        if (songQuery || playlistId) {
-            fetchData();
-        }
-    }, [songQuery, playlistId]);
+        const resetTimeLine = () => {
+             if (hoverPlayheadRef.current) {
+                hoverPlayheadRef.current.style.width = '0';
+             }
+        };
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        const songQuery = e.target.elements.song.value;
-        if (songQuery) {
-            setSearchParams({ song: songQuery, lang });
-        }
-    };
+        player.addEventListener("timeupdate", timeUpdate);
+        player.addEventListener("ended", nextSong);
+        timeline.addEventListener("click", changeCurrentTime);
+        timeline.addEventListener("mousemove", hoverTimeLine);
+        timeline.addEventListener("mouseout", resetTimeLine);
 
-    const handleLangChange = (e) => {
-        setSearchParams({ lang: e.target.value });
-    };
+        return () => {
+            player.removeEventListener("timeupdate", timeUpdate);
+            player.removeEventListener("ended", nextSong);
+            timeline.removeEventListener("click", changeCurrentTime);
+            timeline.removeEventListener("mousemove", hoverTimeLine);
+            timeline.removeEventListener("mouseout", resetTimeLine);
+        };
+    }, [nextSong]);
+
+    // Media Session API integration
+    useEffect(() => {
+      if (!currentSong || !('mediaSession' in navigator)) return;
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title:  currentSong.name,
+        artist: currentSong.author,
+        album:  'My playlist',
+        artwork: [
+          { src: currentSong.img, sizes: '96x96',  type: 'image/png' },
+          { src: currentSong.img, sizes: '192x192', type: 'image/png' },
+          { src: currentSong.img, sizes: '512x512', type: 'image/png' },
+        ],
+      });
+    }, [currentSong]);
+
+    // Set action handlers once.
+    useEffect(() => {
+      if (!('mediaSession' in navigator)) return;
+
+      navigator.mediaSession.setActionHandler('play',        playOrPause);
+      navigator.mediaSession.setActionHandler('pause',       playOrPause);
+      navigator.mediaSession.setActionHandler('previoustrack', prevSong);
+      navigator.mediaSession.setActionHandler('nexttrack',     nextSong);
+      navigator.mediaSession.setActionHandler('seekto',       ({ seekTime }) => {
+        if (playerRef.current && Number.isFinite(seekTime)) {
+          playerRef.current.currentTime = seekTime;
+        }
+      });
+      // The component will re-render, but these handlers reference the latest functions due to useCallback.
+    }, [playOrPause, prevSong, nextSong]);
+
+    // Sync Media Session playback state
+    useEffect(() => {
+        const audio = playerRef.current;
+        if (!audio || !('mediaSession' in navigator)) return;
+    
+        const updatePositionState = () => {
+            if ('setPositionState' in navigator.mediaSession) {
+                navigator.mediaSession.setPositionState({
+                    duration: audio.duration || 0,
+                    position: audio.currentTime || 0,
+                    playbackRate: audio.playbackRate,
+                });
+            }
+        };
+    
+        const onPlay = () => {
+            navigator.mediaSession.playbackState = 'playing';
+            setIsPlaying(true); // Sync component state if OS play button is used
+            updatePositionState();
+        };
+    
+        const onPause = () => {
+            navigator.mediaSession.playbackState = 'paused';
+            setIsPlaying(false); // Sync component state if OS pause button is used
+            updatePositionState();
+        };
+    
+        // Set initial state for the current audio element
+        navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
+        updatePositionState();
+    
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('seeked', updatePositionState);
+    
+        // This cleanup function will run when the component unmounts OR when the index changes
+        return () => {
+            audio.removeEventListener('play', onPlay);
+            audio.removeEventListener('pause', onPause);
+            audio.removeEventListener('seeked', updatePositionState);
+        };
+    }, [index]);
+
+
+    if (!currentSong) {
+        return <div style={{ color: 'white' }}>Loading player...</div>;
+    }
 
     return (
-        <>
-            <form className="form" onSubmit={handleSearch}>
-                <label style={{ fontFamily: 'poppins', fontSize: '1.1rem', fontWeight: 'bold' }}>
-                    Search Your Song:
-                </label>
-                <br /><br />
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <input type="text" name="song" placeholder="Enter Song Name" required />
-                </div>
-                <br />
-                <input type="submit" value="Search" style={{ fontSize: '15px', padding: '10px', backgroundColor: 'blue', color: 'white', borderRadius: '5px', fontFamily: 'poppins' }} />
-            </form>
+        <div className="card">
+            <div className="current-song">
+                <audio ref={playerRef} key={currentSong.audio}>
+                    <source src={currentSong.audio} type="audio/ogg" preload="metadata"/>
+                    Your browser does not support the audio element.
+                </audio>
 
-            <form>
-                <select name="lang" className="sel" value={lang} onChange={handleLangChange}>
-                    {languages.map((name, index) => (
-                        <option key={languageValues[index]} value={languageValues[index]}>
-                            {name}
-                        </option>
-                    ))}
-                </select>
-            </form>
-            <br />
-
-            {isLoading ? (
-                <div style={{ color: 'white', textAlign: 'center', margin: '30px 0' }}>
-                    Loading...
+                <div className="img-wrap">
+                    <img src={currentSong.img} alt={currentSong.name} />
                 </div>
-            ) : error ? (
-                <div style={{ color: 'red', textAlign: 'center', margin: '30px 0' }}>
-                    {error}
-                </div>
-            ) : (
-                musicList.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '50px' }}>
-                        <MusicPlayer musicList={musicList} />
-                    </div>
-                )
-            )}
 
-            <div className="dbox">
-                 <h2 style={{ color: randomColor }} id="dev">Developed By Anjan with &hearts;</h2>
+                <span className="song-name">{currentSong.name}</span>
+                <span className="song-autor">{currentSong.author}</span>
+
+                <div className="time">
+                    <div className="current-time">{currentTime}</div>
+                    <div className="end-time">{currentSong.duration}</div>
+                </div>
+
+                <div ref={timelineRef} id="timeline">
+                    <div ref={playheadRef} id="playhead" style={{margin: "0 auto"}}></div>
+                    <div ref={hoverPlayheadRef} className="hover-playhead" data-content="0:00"></div>
+                </div>
+
+                <div className="controls">
+                    <button onClick={prevSong} className="prev prev-next current-btn">
+                        <i className="fas fa-backward"></i>
+                    </button>
+                    {/* 5. The button and playlist now use `isPlaying` state */}
+                    <button onClick={playOrPause} className="play current-btn">
+                        {isPlaying ? <i className="fas fa-pause"></i> : <i className="fas fa-play"></i>}
+                    </button>
+                    <button onClick={nextSong} className="next prev-next current-btn">
+                        <i className="fas fa-forward"></i>
+                    </button>
+                </div>
             </div>
-            <br />
 
-            <div className="box2">
-                <br />
-                <h2 style={{ color: 'blue', width: '100%', fontSize: '1.5rem', marginTop: '10px' }}>
-                    <u>Trending</u>
-                </h2>
-                {loading ? <p style={{ color: 'white' }}>Loading trending playlists...</p> : (
-                    trending.map(p => (
-                        <div className="new" key={p.id}>
-                            <a href={`?playlist=${p.id}&lang=${lang}`} style={{ textDecoration: 'none' }}>
-                                <img style={{ width: '150px', height: '150px' }} src={p.image[2].link} alt={p.title} />
-                                <br />
-                                <h3 style={{ fontFamily: 'solway', fontSize: '1.1rem', color: 'purple' }}>
-                                    {p.title}
-                                </h3>
-                            </a>
-                            <br />
+            <div className="play-list">
+                {musicList.map((music, key) => (
+                    <div
+                        key={key}
+                        onClick={() => clickAudio(key)}
+                        className={`track ${index === key ? (isPlaying ? 'play-now' : 'current-audio') : ''}`}
+                    >
+                        <img className="track-img" src={music.img} alt={music.name} />
+                        <div className="track-discr">
+                            <span className="track-name">{music.name}</span>
+                            <span className="track-author">{music.author}</span>
                         </div>
-                    ))
-                )}
+                        <span className="track-duration">
+                            {(index === key && isPlaying) ? currentTime : music.duration}
+                        </span>
+                    </div>
+                ))}
             </div>
-            <br />
-            <QuoteBox />
-            <br />
-        </>
+        </div>
+    
     );
 };
 
-export default HomePage;
+export default MusicPlayer;
