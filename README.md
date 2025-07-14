@@ -1,12 +1,46 @@
-# React + Vite
+# 🎵 Song Finder React
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A powerful, interactive music discovery web app built using **React.js**. This application scrapes data from **Saavn** and **Gaana** to let users search songs, explore music by genre, and even navigate using **Bluetooth devices** and mobile gestures.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🌟 Features
 
-## Expanding the ESLint configuration
+- 🔍 **Search Music**: Search songs from **Saavn** and **Gaana** using live APIs/scraping
+- 🎧 **Genre-based Suggestions**: Personalized song recommendations by genre
+- 📱 **Mobile Navigation Support**: Optimized UI and navigation for mobile users
+- 🎮 **Bluetooth Navigation**: Control UI via Bluetooth hardware buttons (headsets/devices)
+- ⚡ **Fast & Lightweight**: Built for speed using React and minimal dependencies
+- 🎨 **Interactive UI**: Clean, animated interface with dark mode support
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🔍 Data Source
+
+This project uses **custom scraping** logic to fetch data from:
+
+- **Saavn (JioSaavn)** – song names, albums, artists, streaming links
+- **Gaana** – top tracks, artist info, playlists
+
+> ⚠️ **Disclaimer**: This project scrapes public data for **educational purposes only** and is not affiliated with Saavn or Gaana.
+
+---
+
+## 🛠 Tech Stack
+
+- **React.js** – UI framework
+- **Axios** – API calls
+- **Cheerio** – HTML scraping
+- **Tailwind CSS** – Styling
+- **Web Bluetooth API** – Device interaction
+- **React Router** – Page navigation
+
+---
+
+## 🚀 Installation
+
+```bash
+git clone https://github.com/anjan-budige/song-finder-react.git
+cd song-finder-react
+npm install
+npm start
